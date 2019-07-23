@@ -1,6 +1,7 @@
 package gorm
 
 import (
+
 	"bytes"
 	"database/sql"
 	"database/sql/driver"
@@ -1062,9 +1063,16 @@ func (scope *Scope) typeName() string {
 
 // trace print sql log
 func (scope *Scope) trace(t time.Time) {
-	if len(scope.SQL) > 0 {
-		scope.db.slog(scope.SQL, t, scope.SQLVars...)
+
+	var cache string
+	if cache = " [CACHED] "; scope.Search.cacheFound {
+		cache = " [NOCACHE] "
 	}
+
+	if len(scope.SQL) > 0 {
+		scope.db.slog(cache + scope.SQL, t, scope.SQLVars...)
+	}
+
 }
 
 func (scope *Scope) changeableField(field *Field) bool {

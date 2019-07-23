@@ -2,6 +2,7 @@ package gorm
 
 import (
 	"fmt"
+	"github.com/patrickmn/go-cache"
 )
 
 type search struct {
@@ -24,6 +25,9 @@ type search struct {
 	raw              bool
 	Unscoped         bool
 	ignoreOrderQuery bool
+	cacheKeySearch   string
+	cacheContext 	 *cache.Cache
+	cacheFound		 bool
 }
 
 type searchPreload struct {
@@ -135,6 +139,12 @@ func (s *search) unscoped() *search {
 
 func (s *search) Table(name string) *search {
 	s.tableName = name
+	return s
+}
+
+func (s *search) Cacheable(key string, c * cache.Cache) *search{
+	s.cacheKeySearch = key
+	s.cacheContext = c
 	return s
 }
 

@@ -1,6 +1,7 @@
 package gorm
 
 import (
+	"github.com/patrickmn/go-cache"
 	"context"
 	"database/sql"
 	"errors"
@@ -13,6 +14,7 @@ import (
 
 // DB contains information for current db connection
 type DB struct {
+
 	sync.RWMutex
 	Value        interface{}
 	Error        error
@@ -34,7 +36,10 @@ type DB struct {
 
 	// function to be used to override the creating of a new timestamp
 	nowFuncOverride func() time.Time
+
 }
+
+var CACHE = cache.New(cache.NoExpiration, cache.NoExpiration)
 
 type logModeValue int
 
@@ -803,6 +808,17 @@ func (s *DB) GetErrors() []error {
 		return []error{s.Error}
 	}
 	return []error{}
+}
+
+//func (s *DB) NewCache() *DB{
+//	log.Printf("[CACHE] Build cache layer")
+//	ss := s.clone()
+//	ss.cache = goCache.New(5*time.Minute, 10*time.Minute)
+//	return ss
+//}
+
+func (s *DB) Cacheable(key string) *DB{
+	return s.clone().search.Cacheable(key, CACHE).db
 }
 
 ////////////////////////////////////////////////////////////////////////////////

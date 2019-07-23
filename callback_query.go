@@ -1,6 +1,7 @@
 package gorm
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -15,6 +16,7 @@ func init() {
 
 // queryCallback used to query data from database
 func queryCallback(scope *Scope) {
+
 	if _, skip := scope.InstanceGet("gorm:skip_query_callback"); skip {
 		return
 	}
@@ -59,41 +61,76 @@ func queryCallback(scope *Scope) {
 	scope.prepareQuerySQL()
 
 	if !scope.HasError() {
+
 		scope.db.RowsAffected = 0
 		if str, ok := scope.Get("gorm:query_option"); ok {
 			scope.SQL += addExtraSpaceIfExist(fmt.Sprint(str))
 		}
 
-		if rows, err := scope.SQLDB().Query(scope.SQL, scope.SQLVars...); scope.Err(err) == nil {
-			defer rows.Close()
+		var rows *sql.Rows
+		var err error
 
-			columns, _ := rows.Columns()
-			for rows.Next() {
-				scope.db.RowsAffected++
+		if scope.Search.cacheKeySearch != ""{
 
-				elem := results
-				if isSlice {
-					elem = reflect.New(resultType).Elem()
-				}
-
-				scope.scan(rows, columns, scope.New(elem.Addr().Interface()).Fields())
-
-				if isSlice {
-					if isPtr {
-						results.Set(reflect.Append(results, elem.Addr()))
-					} else {
-						results.Set(reflect.Append(results, elem))
-					}
-				}
+			if row, found := CacheGet(scope.Search.cacheContext, scope.Search.cacheKeySearch); found{
+				scope.Search.cacheFound = true
+				rows = row.(*sql.Rows)
 			}
 
-			if err := rows.Err(); err != nil {
-				scope.Err(err)
-			} else if scope.db.RowsAffected == 0 && !isSlice {
-				scope.Err(ErrRecordNotFound)
+		}
+
+		query(rows, err, scope, isSlice, isPtr, results, resultType)
+
+		//CacheSave(scope.Search.cacheContext, scope.Search.cacheKeySearch, rows)
+
+		//if !f && scope.Search.cacheKeySearch != ""{
+		//
+		//	if rows != nil{
+		//		CacheSave(scope.Search.cacheContext, scope.Search.cacheKeySearch, rows)
+		//	}
+		//
+		//}
+
+	}
+}
+
+
+func query(rows *sql.Rows, err error, scope *Scope, isSlice bool, isPtr bool, results reflect.Value, resultType reflect.Type){
+
+	if rows == nil{
+		rows, err = scope.SQLDB().Query(scope.SQL, scope.SQLVars...);
+	}
+
+	if  scope.Err(err) == nil {
+		defer rows.Close()
+
+		columns, _ := rows.Columns()
+		for rows.Next() {
+			scope.db.RowsAffected++
+
+			elem := results
+			if isSlice {
+				elem = reflect.New(resultType).Elem()
+			}
+
+			scope.scan(rows, columns, scope.New(elem.Addr().Interface()).Fields())
+
+			if isSlice {
+				if isPtr {
+					results.Set(reflect.Append(results, elem.Addr()))
+				} else {
+					results.Set(reflect.Append(results, elem))
+				}
 			}
 		}
+
+		if err := rows.Err(); err != nil {
+			scope.Err(err)
+		} else if scope.db.RowsAffected == 0 && !isSlice {
+			scope.Err(ErrRecordNotFound)
+		}
 	}
+
 }
 
 // afterQueryCallback will invoke `AfterFind` method after querying
